@@ -1,0 +1,235 @@
+# Bayesian Optimization & Distributed Search Configuration
+# This file defines how the system explores the chemical space to find optimal materials.
+
+# Discovery loop settings
+discovery:
+  num_iterations: 100  # Total search iterations
+  batch_size: 20  # Candidates to evaluate per iteration
+  initial_random_samples: 50  # Random exploration before optimization
+  stopping_criteria:
+    target_formation_energy: -3.0  # eV/atom - stop if achieved
+    max_iterations: 100
+    plateau_patience: 20  # Stop if no improvement for N iterations
+    min_improvement: 0.01  # Minimum improvement to consider progress
+
+# Search space definition
+search_space:
+  # Element selection
+  allowed_elements:
+    - H, Li, Na, K, Rb, Cs  # Alkali metals
+    - Be, Mg, Ca, Sr, Ba  # Alkaline earth metals
+    - Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn  # 3d transition metals
+    - O, S, Se, Te  # Chalcogens
+    - F, Cl, Br, I  # Halogens
+    - B, C, N, Si, P, As  # Metalloids & nonmetals
+
+  # Compositional constraints
+  min_elements: 2  # Binary compounds minimum
+  max_elements: 4  # Quaternary compounds maximum
+  max_atoms_per_unit_cell: 50  # Limit complexity
+  charge_neutrality: true  # Enforce charge balance
+
+  # Crystal structure templates
+  structure_prototypes:
+    - "perovskite"  # ABX3
+    - "spinel"  # AB2X4
+    - "rocksalt"  # AB
+    - "wurtzite"  # AB
+    - "fluorite"  # AB2
+    - "pyrochlore"  # A2B2X7
+
+  # Property constraints (for candidate filtering)
+  constraints:
+    formation_energy_max: 0.5  # eV/atom - only stable materials
+    band_gap_min: 0.0  # eV
+    band_gap_max: 10.0  # eV
+    density_min: 0.5  # g/cm³
+    density_max: 20.0  # g/cm³
+
+# Bayesian optimization settings
+bayesian_optimization:
+  # Surrogate model (not the GNN - this models the acquisition landscape)
+  surrogate:
+    type: "gaussian_process"  # Options: gaussian_process, random_forest, tpe
+    kernel: "matern"  # For GP: matern, rbf, periodic
+    nu: 2.5  # Matern kernel parameter
+    noise_level: 0.01  # Observation noise
+
+  # Acquisition function
+  acquisition:
+    function: "expected_improvement"  # Options: ei, ucb, pi, mes, kg
+    strategy: "adaptive"  # Options: adaptive, fixed, llm_guided
+
+    # Function-specific parameters
+    expected_improvement:
+      xi: 0.01  # Exploration-exploitation trade-off
+    upper_confidence_bound:
+      beta: 2.0  # Exploration parameter (adaptive over time)
+      beta_schedule: "sqrt_t"  # Options: constant, linear, sqrt_t, log_t
+    thompson_sampling:
+      num_samples: 10  # Number of samples from posterior
+
+    # Adaptive strategy
+    adaptive_params:
+      exploration_phase_iterations: 20  # High exploration early on
+      exploitation_phase_iterations: 30  # High exploitation later
+      transition_smoothness: 10  # Gradual transition
+
+  # Multi-objective optimization
+  multi_objective:
+    enabled: false  # Enable Pareto optimization
+    objectives:
+      - name: "formation_energy"
+        weight: 1.0
+        minimize: true
+      - name: "band_gap"
+        target: 1.5  # Target value (minimize distance)
+        weight: 0.5
+    scalarization: "weighted_sum"  # Options: weighted_sum, chebyshev, augmented
+
+  # Optimization bounds
+  bounds:
+    formation_energy: [-10.0, 5.0]  # eV/atom
+    band_gap: [0.0, 15.0]  # eV
+    stability_score: [0.0, 1.0]  # Probability
+
+# Distributed execution (Ray)
+distributed:
+  # Ray cluster configuration
+  ray:
+    address: "auto"  # Options: auto, local, ray://host:port
+    runtime_env:
+      pip: "requirements.txt"
+      env_vars:
+        OMP_NUM_THREADS: "1"  # Prevent oversubscription
+
+  # Worker configuration
+  workers:
+    num_workers: 4  # Parallel workers (auto-scale if on cloud)
+    cpus_per_worker: 2
+    gpus_per_worker: 0  # Set to 0.25-0.5 for GPU inference
+    memory_per_worker: 4  # GB
+
+  # Task scheduling
+  scheduling:
+    strategy: "round_robin"  # Options: round_robin, load_balanced, locality
+    max_concurrent_tasks: 10  # Limit parallelism
+    timeout_per_task: 300  # Seconds
+
+  # Fault tolerance
+  fault_tolerance:
+    max_retries: 2  # Retry failed tasks
+    retry_exceptions:
+      - "TimeoutError"
+      - "ConnectionError"
+    checkpoint_frequency: 10  # Save state every N iterations
+    checkpoint_dir: "checkpoints/search"
+
+# Candidate generation
+candidate_generation:
+  # Sampling strategy
+  strategy: "llm_guided"  # Options: random, grid, latin_hypercube, sobol, llm_guided
+
+  # Random sampling
+  random:
+    seed: 42  # For reproducibility
+    use_structure_prototypes: true  # Sample from known templates
+
+  # Latin hypercube sampling
+  latin_hypercube:
+    criterion: "maximin"  # Options: center, maximin, correlation
+
+  # LLM-guided sampling
+  llm_guided:
+    use_agent: true  # Use hypothesis agent to propose candidates
+    agent_proposals_per_iteration: 5  # Agent-suggested candidates
+    random_samples_per_iteration: 15  # Random exploration
+    blend_strategy: "rank_based"  # Options: concatenate, rank_based, alternate
+
+  # Diversity promotion
+  diversity:
+    enforce_diversity: true  # Prevent clustering in chemical space
+    min_distance: 0.1  # Minimum distance in embedding space
+    diversity_weight: 0.2  # Weight in candidate selection
+
+# Validation with DFT
+dft_validation:
+  enabled: false  # Use mock simulator by default (cost control)
+  mock_mode: true  # Use fast mock instead of real DFT
+
+  # Real DFT settings (if enabled)
+  real_dft:
+    calculator: "vasp"  # Options: vasp, gpaw, quantum_espresso
+    settings:
+      xc: "PBE"  # Exchange-correlation functional
+      encut: 520  # eV - plane wave cutoff
+      kpts: [4, 4, 4]  # k-point mesh
+      ediff: 1e-5  # Convergence criterion
+
+  # Validation strategy
+  validation_strategy:
+    validate_top_k: 3  # Validate top K candidates per iteration
+    validation_frequency: 5  # Every N iterations
+    adaptive_validation: true  # Validate more when model is uncertain
+
+  # Cost control
+  cost_control:
+    max_dft_budget: 100  # Maximum DFT calculations per experiment
+    cost_per_calculation: 0.1  # USD (estimate)
+    prioritize_uncertain: true  # Validate high-uncertainty predictions first
+
+# Caching and persistence
+caching:
+  # Prediction caching
+  cache_predictions: true  # Avoid re-predicting same structures
+  cache_backend: "redis"  # Options: memory, redis, disk
+  cache_ttl: 86400  # Seconds (24 hours)
+
+  # Structure deduplication
+  deduplicate_structures: true  # Remove duplicate candidates
+  similarity_threshold: 0.98  # Structure similarity threshold
+
+# Performance monitoring
+monitoring:
+  # Discovery metrics
+  track_discovery_rate: true  # Materials found per iteration
+  track_best_energy: true  # Best formation energy over time
+  track_diversity: true  # Chemical space coverage
+
+  # System metrics
+  track_inference_time: true  # GNN prediction latency
+  track_agent_cost: true  # LLM API costs
+  track_cache_hit_rate: true  # Cache effectiveness
+
+  # Reporting
+  report_frequency: 10  # Log summary every N iterations
+  save_intermediate_results: true  # Save progress to disk
+  results_dir: "data/results"
+
+# Experiment modes
+modes:
+  # Quick test run (for development)
+  test:
+    num_iterations: 10
+    batch_size: 5
+    use_mock_dft: true
+    num_workers: 1
+
+  # Full discovery run (production)
+  production:
+    num_iterations: 100
+    batch_size: 20
+    use_mock_dft: false  # Use real DFT if available
+    num_workers: 8
+    enable_checkpointing: true
+
+  # Benchmark mode (for comparison)
+  benchmark:
+    num_iterations: 50
+    strategies:
+      - random
+      - greedy
+      - bayesian
+      - llm_guided
+    num_runs_per_strategy: 5  # For statistical significance
+    save_detailed_logs: true

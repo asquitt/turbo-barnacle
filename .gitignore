@@ -1,0 +1,122 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Data (large files)
+data/raw/
+data/processed/
+data/cache/
+*.cif
+*.json.gz
+*.tar.gz
+*.zip
+
+# Models (large files)
+models/checkpoints/*.pt
+models/checkpoints/*.pth
+models/*.h5
+*.ckpt
+
+# Logs
+logs/
+*.log
+discovery.log
+
+# MLflow
+mlruns/
+mlartifacts/
+.mlflow/
+
+# Weights & Biases
+wandb/
+
+# DVC
+.dvc/cache/
+*.dvc.tmp
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
+
+# Documentation
+docs/_build/
+site/
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+temp/
+tmp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Results (keep structure, ignore data)
+data/results/*.json
+data/results/*.png
+data/results/*.csv
+!data/results/.gitkeep
+
+# Keep empty directories
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/cache/.gitkeep
+!models/checkpoints/.gitkeep
+!logs/.gitkeep

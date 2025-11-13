@@ -1,0 +1,135 @@
+# LLM Agent Configuration
+# This file defines the behavior of the AI agents that guide the materials discovery process.
+
+# Primary hypothesis generation agent
+hypothesis_agent:
+  # Model selection
+  model: "claude-3-5-sonnet-20241022"  # Primary model
+  fallback_model: "claude-3-haiku-20240307"  # Cheaper fallback for simple tasks
+  temperature: 0.7  # Creativity vs. consistency (0.0-1.0)
+  max_tokens: 4000  # Maximum response length
+
+  # Cost control
+  max_cost_per_experiment: 5.0  # USD - halt if exceeded
+  use_caching: true  # Cache similar prompts (semantic similarity)
+  cache_similarity_threshold: 0.95  # Cosine similarity threshold
+  prompt_compression: true  # Compress long contexts
+
+  # Reasoning strategy
+  use_chain_of_thought: true  # Enable step-by-step reasoning
+  use_self_critique: true  # Agent critiques its own proposals
+  min_confidence: 0.6  # Minimum confidence to accept hypothesis (0.0-1.0)
+
+  # Domain knowledge
+  knowledge_base:
+    - "docs/materials_science_primers/stability_rules.md"
+    - "docs/materials_science_primers/perovskite_guidelines.md"
+    - "docs/materials_science_primers/band_gap_engineering.md"
+
+  # Structured output
+  output_format: "json"  # Options: json, yaml, text
+  schema_validation: true  # Validate outputs against schema
+
+# Critic agent (reviews predictions)
+critic_agent:
+  model: "claude-3-haiku-20240307"  # Faster model for critique
+  temperature: 0.3  # Lower temperature for critical analysis
+  max_tokens: 2000
+
+  # Critique criteria
+  check_uncertainty: true  # Flag high-uncertainty predictions
+  check_physical_constraints: true  # Verify against known physics
+  check_composition_validity: true  # Ensure valid stoichiometry
+  uncertainty_threshold: 0.3  # Flag if uncertainty > 30%
+
+# Prompt templates (stored in configs/prompts/)
+prompts:
+  hypothesis_generation: "hypothesis_generation.txt"
+  search_space_definition: "search_space_definition.txt"
+  acquisition_function_selection: "acquisition_function_selection.txt"
+  result_analysis: "result_analysis.txt"
+  critique_prediction: "critique_prediction.txt"
+
+# Agent interaction patterns
+interaction:
+  # Multi-agent collaboration
+  enable_agent_collaboration: true  # Multiple agents discuss
+  max_discussion_rounds: 2  # Prevent infinite loops
+  consensus_threshold: 0.7  # Agreement level to proceed
+
+  # Human-in-the-loop
+  request_human_approval: false  # Auto-proceed or wait for human
+  notify_on_anomaly: true  # Alert on unexpected results
+  notification_methods:
+    - "log"  # Options: log, email, slack, webhook
+
+# Prompt engineering settings
+prompt_engineering:
+  # Context management
+  max_context_length: 100000  # Tokens (Claude 3.5 supports 200k)
+  context_compression: "summarize"  # Options: truncate, summarize, embed
+  include_examples: true  # Few-shot examples in prompts
+  num_examples: 3  # Number of examples to include
+
+  # Scientific reasoning
+  emphasize_domain_knowledge: true  # Prioritize materials science rules
+  allow_creative_proposals: true  # Allow unconventional hypotheses
+  require_citations: false  # Ask agent to cite relevant papers
+
+# Performance optimization
+performance:
+  # Batching
+  batch_similar_queries: true  # Combine similar questions
+  batch_timeout: 2.0  # Seconds to wait for batching
+
+  # Async processing
+  use_async: true  # Non-blocking API calls
+  max_concurrent_requests: 5  # Rate limiting
+
+  # Retries
+  max_retries: 3  # Retry on API failures
+  retry_delay: 1.0  # Seconds between retries
+  exponential_backoff: true
+
+# Safety and validation
+safety:
+  # Content filtering
+  filter_harmful_content: true  # Block dangerous chemistry
+  filter_proprietary_info: true  # Don't leak confidential data
+
+  # Output validation
+  validate_json_schema: true  # Ensure valid JSON outputs
+  validate_chemical_formulas: true  # Check stoichiometry
+  max_atomic_number: 118  # Reject unknown elements
+
+# Logging and monitoring
+logging:
+  log_all_prompts: true  # Save prompts to disk
+  log_all_responses: true  # Save responses to disk
+  log_dir: "logs/agent_interactions"
+  log_token_usage: true  # Track costs
+  log_latency: true  # Track API latency
+
+# Experiment-specific overrides
+experiments:
+  # Example: High-stakes experiment (use best model, low temp)
+  precision_mode:
+    model: "claude-3-5-sonnet-20241022"
+    temperature: 0.2
+    use_self_critique: true
+    max_tokens: 6000
+
+  # Example: Fast exploration (cheap model, high temp)
+  exploration_mode:
+    model: "claude-3-haiku-20240307"
+    temperature: 0.9
+    use_self_critique: false
+    max_tokens: 2000
+
+  # Example: Cost-optimized (caching, compression)
+  budget_mode:
+    model: "claude-3-haiku-20240307"
+    temperature: 0.5
+    use_caching: true
+    prompt_compression: true
+    batch_similar_queries: true

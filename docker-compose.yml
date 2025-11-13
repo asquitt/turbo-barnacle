@@ -1,0 +1,78 @@
+# Docker Compose Configuration for Autonomous Materials Discovery
+#
+# This sets up a complete development environment with:
+# - Materials discovery app
+# - MLflow tracking server
+# - Streamlit demo interface
+#
+# Usage:
+#   docker-compose up --build        # Start all services
+#   docker-compose up demo            # Start just the demo
+#   docker-compose down               # Stop all services
+
+version: '3.8'
+
+services:
+  # Main discovery application
+  discovery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: materials-discovery
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./logs:/app/logs
+    environment:
+      - MP_API_KEY=${MP_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    command: python src/main.py --iterations 50 --mock --visualize
+    depends_on:
+      - mlflow
+    networks:
+      - materials-net
+
+  # MLflow tracking server
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.9.1
+    container_name: mlflow-server
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlruns:/mlflow/mlruns
+      - ./mlartifacts:/mlflow/mlartifacts
+    command: >
+      mlflow server
+      --backend-store-uri sqlite:///mlflow/mlruns/mlflow.db
+      --default-artifact-root /mlflow/mlartifacts
+      --host 0.0.0.0
+      --port 5000
+    networks:
+      - materials-net
+
+  # Streamlit demo interface
+  demo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: materials-demo
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+    environment:
+      - MP_API_KEY=${MP_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    command: streamlit run src/ui/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+    networks:
+      - materials-net
+
+networks:
+  materials-net:
+    driver: bridge
+
+volumes:
+  mlruns:
+  mlartifacts:

@@ -1,0 +1,126 @@
+# GNN Surrogate Model Configuration
+# This file defines the architecture and training parameters for the Graph Neural Network
+# that predicts material properties from crystal structures.
+
+model:
+  # Model architecture
+  architecture: "graphsage"  # Options: graphsage, gat, gcn, schnet
+  hidden_dim: 128  # Hidden layer dimensions
+  num_layers: 3  # Number of message-passing layers
+  dropout: 0.1  # Dropout rate for regularization
+  aggregation: "mean"  # Options: mean, max, add, attention
+
+  # Node (atom) embedding
+  node_embedding:
+    atomic_number_dim: 32  # Embedding dimension for atomic numbers
+    use_continuous_features: true  # Use radius, electronegativity, etc.
+    continuous_features:
+      - atomic_mass
+      - electronegativity
+      - covalent_radius
+      - valence_electrons
+      - first_ionization_energy
+
+  # Edge (bond) features
+  edge_features:
+    use_distance: true  # Bond distances
+    distance_bins: 20  # Number of RBF bins for distance encoding
+    max_distance: 8.0  # Maximum bond distance (Angstroms)
+    use_direction: false  # 3D bond direction vectors (increases memory)
+
+  # Output heads (multi-task learning)
+  output_heads:
+    formation_energy:
+      enabled: true
+      activation: null  # Linear output
+      hidden_dim: 64
+      num_layers: 2
+    band_gap:
+      enabled: true
+      activation: "relu"  # Non-negative constraint
+      hidden_dim: 64
+      num_layers: 2
+    stability:
+      enabled: true
+      activation: "sigmoid"  # Binary classification
+      hidden_dim: 32
+      num_layers: 2
+
+# Training configuration
+training:
+  # Optimization
+  optimizer: "adamw"  # Options: adam, adamw, sgd
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  scheduler: "reduce_on_plateau"  # Options: reduce_on_plateau, cosine, exponential
+  scheduler_params:
+    patience: 10
+    factor: 0.5
+    min_lr: 0.00001
+
+  # Loss weights (multi-task)
+  loss_weights:
+    formation_energy: 1.0  # MSE loss
+    band_gap: 0.5  # MSE loss
+    stability: 2.0  # BCE loss (higher weight for stability)
+
+  # Training loop
+  num_epochs: 200
+  batch_size: 32  # Adjust based on GPU memory
+  accumulation_steps: 1  # Gradient accumulation for larger effective batch
+  early_stopping:
+    patience: 20
+    min_delta: 0.001
+    monitor: "val_loss"
+
+  # Data
+  train_size: 0.8
+  val_size: 0.1
+  test_size: 0.1
+  num_workers: 4  # DataLoader workers
+
+  # Regularization
+  gradient_clip: 1.0  # Gradient clipping threshold
+  label_smoothing: 0.0  # For classification tasks
+
+# Inference configuration
+inference:
+  # Uncertainty quantification
+  use_mc_dropout: true  # Monte Carlo dropout for uncertainty
+  mc_samples: 10  # Number of forward passes
+  use_ensemble: false  # Use ensemble of models (costs more memory)
+  ensemble_size: 5
+
+  # Performance
+  batch_size: 128  # Larger batches for inference
+  use_mixed_precision: true  # FP16 inference (2× speedup)
+
+# Hardware configuration
+hardware:
+  device: "auto"  # Options: auto, cpu, cuda, mps
+  mixed_precision: true  # Use automatic mixed precision (AMP)
+  compile: false  # Use torch.compile (PyTorch 2.0+)
+  deterministic: true  # Reproducible results (slower)
+
+# Checkpointing
+checkpointing:
+  save_dir: "models/checkpoints"
+  save_top_k: 3  # Keep top 3 models by validation loss
+  save_every_n_epochs: 10  # Also save periodic checkpoints
+  monitor: "val_loss"
+  mode: "min"
+
+# Logging
+logging:
+  use_mlflow: true
+  use_wandb: true
+  log_every_n_steps: 10
+  log_model_architecture: true
+  log_gradients: false  # Detailed gradient logging (expensive)
+
+# Data augmentation (optional, for robustness)
+augmentation:
+  enabled: false  # Disable by default
+  rotate_structure: false  # Random rotations
+  perturb_positions: false  # Add noise to atomic positions
+  perturb_std: 0.01  # Standard deviation for position noise (Angstroms)
